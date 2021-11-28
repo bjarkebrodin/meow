@@ -1,0 +1,272 @@
+#!/usr/bin/python3
+
+import yaml
+import os
+import sys
+import json
+import time
+import os
+import re
+import sys
+import webbrowser
+import requests
+import requests.exceptions
+import configparser
+import argparse
+
+home        = os.environ.get('HOME')
+root_path   = os.path.abspath(f'{home}/.meow')
+config_path = os.path.abspath(f'{home}/.meow.yaml')
+
+
+def parse_yaml_unsafe(filepath):
+    with open(filepath, "r") as stream: 
+        return yaml.safe_load(stream)
+
+
+def ensure_file_exists(filepath):
+    if not os.path.exists(filepath) : open(filepath, 'a').close()
+    if os.path.isfile(filepath)     : return
+    if os.path.isdir(filepath)      : raise Exception(f'{filepath} is a dir, not a file')
+
+
+def ensure_dir_exists(filepath):
+    if not os.path.exists(filepath) : os.mkdir(filepath)
+    if os.path.isdir(filepath)      : return
+    if os.path.isfile(filepath)     : raise Exception(f'{filepath} is a file, not a dir')
+
+
+ensure_dir_exists(root_path)
+ensure_file_exists(config_path)
+
+config  = parse_yaml_unsafe(config_path)
+cfg     = None
+cookies = None
+
+
+def debug(*args):
+    print(*args, file=sys.stderr)
+
+
+def fail_arbitrary(): 
+    print("\nSomething unexpected went wrong!\n")
+    sys.exit(1)
+
+
+def get_config():
+    cfg = configparser.ConfigParser()
+
+    if not cfg.read([os.path.join(os.path.expanduser("~"), '.kattisrc'),
+                     os.path.join(os.path.dirname(sys.argv[0]), '.kattisrc')]):
+        print('ERROR: check your $HOME/.kattisrc file')
+        sys.exit(1)
+
+    return cfg
+
+
+def get_url(cfg, option, default):
+    if cfg.has_option('kattis', option): return cfg.get('kattis', option)
+    else: return 'https://%s/%s' % (cfg.get('kattis', 'hostname'), default)
+
+
+def login(login_url, username, password=None, token=None):
+    login_args = {'user': username, 'script': 'true'}
+
+    if password: login_args['password'] = password
+    if token   : login_args['token']    = token
+
+    return requests.post(login_url, data=login_args, headers={'User-Agent': 'kattis-cli-submit'})
+
+
+def login_from_config(cfg):
+    username = cfg.get('user', 'username')
+    password = token = None
+
+    try: password = cfg.get('user', 'password')
+    except configparser.NoOptionError: pass
+    try: token    = cfg.get('user', 'token')
+    except configparser.NoOptionError: pass
+
+    if password is None and token is None: 
+        raise ConfigError('.kattisrc corrupted')
+
+    loginurl = get_url(cfg, 'loginurl', 'login')
+    return login(loginurl, username, password, token)
+
+
+def guess_language(ext, files):
+    return config['language_guesses'].get(ext, None)
+
+
+def guess_mainfile(language, files):
+    for filename in files:
+        if os.path.splitext(os.path.basename(filename))[0] in ['main', 'Main']:
+            return filename
+    for filename in files:
+        try:
+            with open(filename) as f:
+                conts = f.read()
+                if language in ['Java', 'Rust', 'Scala', 'Kotlin'] and re.search(r' main\s*\(', conts):
+                    return filename
+                if language == 'Pascal' and re.match(r'^\s*[Pp]rogram\b', conts):
+                    return filename
+        except IOError:
+            pass
+    return files[0]
+
+
+def guess_mainclass(language, files):
+    if language in config['mainfile_languages'] and len(files) > 1:
+        return os.path.basename(guess_mainfile(language, files))
+    if language in config['mainclass_languages']:
+        mainfile = os.path.basename(guess_mainfile(language, files))
+        name = os.path.splitext(mainfile)[0]
+        if language == 'Kotlin':
+            return name[0].upper() + name[1:] + 'Kt'
+        return name
+    return None
+
+
+def submit(cfg, cookies, problem, language, files, mainclass, tag):
+    data = {'submit': 'true',
+            'submit_ctr': 2,
+            'language': language,
+            'mainclass': mainclass,
+            'problem': problem,
+            'tag': tag,
+            'script': 'true'}
+
+    submit_url = get_url(cfg, 'submissionurl', 'submit') 
+    sub_files = []
+    for f in files:
+        with open(f) as sub_file:
+            sub_files.append(('sub_file[]',
+                              (os.path.basename(f),
+                               sub_file.read(),
+                               'application/octet-stream')))
+
+    return requests.post(submit_url, data=data, files=sub_files, cookies=cookies, headers={'User-Agent': 'kattis-cli-submit'})
+
+
+def parse_submit_args():
+    parser = argparse.ArgumentParser(prog='meow', description='Submit a solution to Kattis')
+    parser.add_argument('submit', nargs='+')
+    parser.add_argument('-p', '--problem')
+    parser.add_argument('-m', '--mainclass')
+    parser.add_argument('-l', '--language')
+    parser.add_argument('-t', '--tag')
+    parser.add_argument('-f', '--force')
+    parser.add_argument('files', nargs='+')
+    return parser.parse_args()
+
+
+# fixme: run on all public testcases first before submitting
+def submit_problem(cfg):
+    args = parse_submit_args()
+    cookies = login_from_config(cfg).cookies
+    
+    files = args.files
+
+    problem, ext = os.path.splitext(os.path.basename(files[0]))
+    problem = problem.lower()
+
+    language = guess_language(ext, files)
+    mainclass = guess_mainclass(language, files)
+    tag = args.tag
+
+    print(f"\nSubmitting problem '{problem}'\n", end='')
+    response = submit(cfg, cookies, problem, language, files, mainclass, tag) 
+    content = response.content.decode('utf-8').replace('<br />', '\n')
+
+    submission_id = re.search(r'Submission ID: (\d+)', content).group(1)
+    submissions_url = get_url(cfg, 'submissionsurl', 'submissions')
+    status_url = f'{submissions_url}/{submission_id}?json'
+
+    cookies = login_from_config(cfg).cookies
+    l, n = 0, 0
+    while (True):
+
+        status = requests.post(status_url, cookies=cookies, headers={
+            'User-Agent': 'kattis-cli-submit', 
+            'script': 'true'
+        })
+
+        info = json.loads(status.content.decode('utf-8'))
+        status_id = info['status_id']
+
+        if status.status_code != 200 or 5 < status_id < 14:
+            print('\n')
+            print(status.content, '\n')
+            fail_arbitrary()
+        if status_id == 14:
+            for j in range(n-l): print('x ', end='', flush=True)
+            print("\nWrong Answer!\n")  
+            break
+        if status_id == 16:
+            for j in range(n-l): print('\u2713 ', end='', flush=True)
+            print("\nSubmission Accepted!\n")  
+            break
+
+        pat = re.compile(r'Test case (?P<i>\d+)\/(?P<n>\d+): (?P<ans>\w+)\"')
+        matches = pat.finditer(info['row_html'])
+        if matches is None: continue
+        cases = list(matches)
+        i = int(info['testcase_index'])
+
+        if i > 0 and len(cases) > 0:
+            for j in range(i-l):
+                test_case = cases[j]
+                i = int(test_case.group('i'))
+                n = int(test_case.group('n'))
+                ans = test_case.group('ans')
+
+                if ans.strip().lower() == 'accepted':
+                    print('\u2713 ', end='', flush=True)
+                else:
+                    print('x ', end='', flush=True)
+            l = i
+
+        time.sleep(0.25)
+
+
+def new_problem(cfg):
+    parser = argparse.ArgumentParser(prog='meow new', description='Start a new problem')
+    parser.add_argument('new')
+    parser.add_argument('problem')
+    parser.add_argument('-t', '--template')
+    args = parser.parse_args()
+
+    prob_dir = config['problem_directory']
+    problem = sys.argv[2]
+    problem_file = f'{prob_dir}/{problem}/{problem}.{config["default_extension"]}'
+    problem_dir = f'{prob_dir}/{problem}'
+    editor = config['editor']
+    ensure_dir_exists(problem_dir)
+    template_file = config['templates'][config['default_template']]
+
+    if not os.path.exists(problem_file):
+        with open(problem_file, 'wb') as problem_stream:
+            with open(template_file, 'rb') as template_stream:
+                problem_stream.write(template_stream.read())
+    else:
+        print(problem_file, ' already exists... not writing anyhthing')
+
+    if editor.split(' ')[0].split('\\')[-1] in ['vim', 'nvim', 'nano', 'emacs', 'ne', 'tilde']:
+        os.system(f'{editor} {problem_file}')
+    elif editor.split(' ')[0].split('\\')[-1] in ['code']:
+        os.system(f'{editor} {problem_dir} && {editor} {problem_file} &> /dev/null &')
+    else:
+        os.system(f'{editor} {problem_file} &> /dev/null &')
+
+
+if __name__ == '__main__':
+    cfg = get_config()
+
+    if len(sys.argv) == 1:
+        print('usage: meow <command>')
+        sys.exit(1)
+    if sys.argv[1] == 'new':
+        new_problem(cfg)
+    elif sys.argv[1] == 'submit':
+        submit_problem(cfg)
+

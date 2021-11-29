@@ -26,4 +26,13 @@ kattis poll
 
 -->
 
+## Dependencies
+
+`python3`
+`pyyaml`
+`requests`
+
+For your convenience: ensure `python3` and `pip3` are present then run
+`pip3 install pyyaml requests`
+
 

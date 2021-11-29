@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import yaml
 import os
@@ -145,7 +145,7 @@ def submit(cfg, cookies, problem, language, files, mainclass, tag):
                                sub_file.read(),
                                'application/octet-stream')))
 
-    return requests.post(submit_url, data=data, files=sub_files, cookies=cookies, headers={'User-Agent': 'kattis-cli-submit'})
+    return requests.post(f'{submit_url}?json', data=data, files=sub_files, cookies=cookies, headers={'User-Agent': 'kattis-cli-submit'})
 
 
 def parse_submit_args():
@@ -194,10 +194,16 @@ def submit_problem(cfg):
         info = json.loads(status.content.decode('utf-8'))
         status_id = info['status_id']
 
-        if status.status_code != 200 or 5 < status_id < 14:
-            print('\n')
-            print(status.content, '\n')
-            fail_arbitrary()
+        if status_id == 8:
+            feedback = info['feedback_html']
+            p = re.compile(r"<h3.*>(?P<title>.*)<\/h3>.*<pre.*>(?P<body>(.|\n)*)<\/pre>")
+            m = p.search(feedback)
+
+            print('ERROR:\n')
+            print('\n', m.group('title'), '\n')
+            print('\n', m.group('body'), '\n')
+
+            break
         if status_id == 14:
             for j in range(n-l): print('x ', end='', flush=True)
             print("\nWrong Answer!\n")  
@@ -206,6 +212,11 @@ def submit_problem(cfg):
             for j in range(n-l): print('\u2713 ', end='', flush=True)
             print("\nSubmission Accepted!\n")  
             break
+        if status.status_code != 200 or 5 < status_id < 15:
+            print('\n')
+            print(status.content, '\n')
+            fail_arbitrary()
+
 
         pat = re.compile(r'Test case (?P<i>\d+)\/(?P<n>\d+): (?P<ans>\w+)\"')
         matches = pat.finditer(info['row_html'])
@@ -259,14 +270,23 @@ def new_problem(cfg):
         os.system(f'{editor} {problem_file} &> /dev/null &')
 
 
+def open_browser(cfg):
+    url = get_url(cfg, '', '')
+    webbrowser.open(url)
+
 if __name__ == '__main__':
     cfg = get_config()
 
     if len(sys.argv) == 1:
         print('usage: meow <command>')
         sys.exit(1)
-    if sys.argv[1] == 'new':
+
+    command = sys.argv[1]
+
+    if command == 'browser':
+        open_browser(cfg)
+    if command == 'new':
         new_problem(cfg)
-    elif sys.argv[1] == 'submit':
+    if command == 'submit':
         submit_problem(cfg)
 

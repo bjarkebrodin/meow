@@ -74,3 +74,4 @@ one way to do it is like this:
 - Symlink `main.py` to somewhere on your path, e.g. `ln -sfF "<location_of_repository>/main.py" "$HOME/.local/bin/meow"`
 - Make the link executable `chmod +x "$HOME/.local/bin/meow"`
 - Start a new terminal sessions and verify you can run `meow`, otherwise you might have called the link something else, or may want to make sure the link is on your path
+- You might want to copy the configuration file `.meow.yaml` to `~/.meow.yaml` and configure it to your liking as well

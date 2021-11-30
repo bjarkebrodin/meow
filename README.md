@@ -69,7 +69,7 @@ CPU Time: 0.00s
 Installation is pretty barebones so you can decide yourself if you want to use the code,
 one way to do it is like this:
 
-- Get your .kattisrc file, for open this is at: https://open.kattis.com/download/kattisrc
+- Get your .kattisrc file, for open this is at: https://open.kattis.com/download/kattisrc - this goes to `~/.kattisrc`
 - Clone this repository somewhere as you like
 - Symlink `main.py` to somewhere on your path, e.g. `ln -sfF "<location_of_repository>/main.py" "$HOME/.local/bin/meow"`
 - Make the link executable `chmod +x "$HOME/.local/bin/meow"`

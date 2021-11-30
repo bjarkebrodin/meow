@@ -1,7 +1,9 @@
 
 # Meow
 
-is a modification of the original kattis submission client:
+is a modification of the original kattis submission client,
+with additional support for submitting such as timing feedback and some error messages.
+Additionally, some file system convenience and templating functionality has been added.
 
 Currently we can do stuff like this
 
@@ -9,7 +11,6 @@ Currently we can do stuff like this
 meow new <problem> [-t TEMPLATE]
 meow submit [-h] [-p PROBLEM] [-m MAINCLASS] [-l LANGUAGE] [-t TAG] <files ...>
 ```
-
 
 
 <!--

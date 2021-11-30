@@ -1,4 +1,5 @@
 
+config = """
 #
 # Default config for the meow kattis client
 # This should be place at $HOME/.meow.yaml
@@ -7,26 +8,20 @@
 #   (see https://open.kattis.com/help/submit)
 #
 
-# command to open editor
+# IMPORTANT: ADJUST THESE TO FIT YOUR ENVIRONMENT
+
+problem_directory: '/home/<yourname>/somewhere'
+
 editor: 'vim'
 
-# directory where code files are stored
-# this is used as a default path if invoking submit without absolute paths
-# and also lets 'new' know where to create problems
-problem_directory: '/home/bjarke/Kattis'
+default_extension: 'cpp'
 
-
-# must be a key in templates, will default if no --template is specified on invocation
 default_template: 'cpp'
-
-# absolute paths to template files
-# can be used with:
-#   meow new <problem> --template=<key>
 templates:
-    cpp: '/home/bjarke/Kattis/templates/template.cpp'
-    py: '/home/bjarke/Kattis/templates/template.py'
+    cpp: '/home/<yourname>/Kattis/templates/template.cpp'
 
-# used to guess submission language based on file extensions
+
+# These will never really need configuring unless you're customizing
 language_guesses:
     .c: 'C'
     .c++: 'C++'
@@ -57,8 +52,6 @@ language_guesses:
     .rs: 'Rust'
     .scala: 'Scala'
 
-
-# used to automatically guess mainfile for relevant langs
 mainfile_languages:
   - 'Python2'
   - 'Python3'
@@ -66,9 +59,8 @@ mainfile_languages:
   - 'Rust'
   - 'Pascal'
 
-# used to automatically guess main class for relevant langs
 mainclass_languages:
   - 'Java'
   - 'Scala'
   - 'Kotlin'
-
+"""

@@ -31,6 +31,7 @@ kattis poll
 `python3`
 `pyyaml`
 `requests`
+`html2text`
 
 For your convenience: ensure `python3` and `pip3` are present then run
 `pip3 install pyyaml requests`

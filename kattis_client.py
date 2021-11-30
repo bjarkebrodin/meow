@@ -67,7 +67,6 @@ def _status(status_url, cookies, tracker) -> SubmissionTracker:
   status_id = int(content['status_id'])
   test_index = int(content['testcase_index'])
 
-
   tracker.status = status_id
   tracker.index = test_index
 
@@ -77,6 +76,23 @@ def _status(status_url, cookies, tracker) -> SubmissionTracker:
     p = re.compile(r'cpu">(?P<time>.+?)<')
     m = p.search(feedback)
     tracker.message = f'{tracker.message}\nCPU Time: {m.group("time").replace("&nbsp;","")}'
+
+    #fixme: do this more elegantly when time pls
+    if test_index > 0:
+        pat = re.compile(r'Test case (?P<i>\d+)\/(?P<n>\d+): (?P<ans>\w+)\"')
+        matches = pat.finditer(content['row_html'])
+        cases = list(matches)
+
+        if len(cases) > 0: 
+          n = min(int(cases[0].group('n')), len(cases))
+          tracker.answers = [False] * n
+          for i in range(n):
+              test_case = cases[i]
+              if 'accepted' == test_case.group('ans').strip().lower():
+                tracker.answers[i] = True
+              else:
+                tracker.answers[i] = False
+
   elif status_id == ERROR:
     feedback = content['feedback_html']
     p = re.compile(r"<h3.*>(?P<title>.*)<\/h3>.*<pre.*>(?P<body>(.|\n)*)<\/pre>")
@@ -94,7 +110,6 @@ ERROR: {m.group('title')}
     pat = re.compile(r'Test case (?P<i>\d+)\/(?P<n>\d+): (?P<ans>\w+)\"')
     matches = pat.finditer(content['row_html'])
     cases = list(matches)
-
 
     if len(cases) > 0: 
       n = min(int(cases[0].group('n')), len(cases))

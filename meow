@@ -2,6 +2,5 @@
 
 if [[ $1 == "test" ]]; then echo "test"; exit 0; fi
 
-loc=${$(readlink ${0:a}):h}
-python3 "$loc/main.py" $@
+python3 "${0:a:h}/main.py" $@
 

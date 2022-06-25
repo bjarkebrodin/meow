@@ -99,7 +99,8 @@ def _status(status_url, cookies, tracker) -> SubmissionTracker:
     feedback = content['row_html']
     p = re.compile(r'cpu">(?P<time>.+?)<')
     m = p.search(feedback)
-    tracker.message = f'{tracker.message}\nCPU Time: {m.group("time").replace("&nbsp;","")}'
+    if m is not None:
+        tracker.message = f'{tracker.message}\nCPU Time: {m.group("time").replace("&nbsp;","")}'
 
     #fixme: do this more elegantly when time pls
     if test_index > 0:

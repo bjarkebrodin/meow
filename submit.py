@@ -99,15 +99,19 @@ def _track_status(get_status):
 def submit_problem():
 
   config = load_meow_config()
+
   args = _parse_args()
+  if '.' not in args.files[0]:
+    args.files[0] = f'{args.files[0]}.{config.default_template}'
+
   language = _language_or_guess(config, args)
   mainclass = _guess_mainclass(config, language, args.files)
   problem = _problem_name_or_guess(args)
   files = _adjust_file_paths(args.files, problem, config)
 
   print()
-  print(f'Submitting {problem}') 
-  print(f'Language: {language}\n') 
+  print(f'Submitting {problem}')
+  print(f'Language: {language}\n')
   print(header.header)
 
   # filestring = "\n\t".join(files)
@@ -118,3 +122,4 @@ def submit_problem():
 
 if __name__ == '__main__':
   submit_problem()
+
